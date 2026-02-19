@@ -25,6 +25,7 @@
 #define vec_pop       carr_vec_pop
 #define vec_swap      carr_vec_swap
 #define vec_free      carr_vec_free
+#define vec_clone     carr_vec_clone
 
 #define heapfy        carr_heapfy
 #define heap_new      carr_heap_new
@@ -32,6 +33,9 @@
 #define heap_pop      carr_heap_pop
 #define heap_push     carr_heap_push
 #define heap_balance  carr_heap_balance
+#define heap_parent   carr_heap_parent
+#define heap_left     carr_heap_left
+#define heap_right    carr_heap_right
 
 #define HeapCompareFunction CarrHeapCompareFunction
 
@@ -59,15 +63,21 @@
 #define CARR_VEC_INITIAL_CAP 256
 #endif  // CARR_VEC_INITIAL_CAP
 
-#define carr_vec_realloc(vec)                                                  \
+
+#define carr_vec_realloc(vec, new_size) \
 do {                                                                           \
-    size_t new_cap;                                                            \
-    if ((vec)->cap > 0) {                                                      \
-        new_cap = (vec)->cap * 2;                                              \
-    } else {                                                                   \
-        new_cap = CARR_VEC_INITIAL_CAP;                                        \
+    if ((vec)->cap < new_size) {                                               \
+        (vec)->items = realloc((vec)->items, (new_size));                      \
     }                                                                          \
-    (vec)->items = realloc((vec)->items, new_cap * sizeof (vec)->items[0]);    \
+} while (0)
+
+#define carr_vec_grow_cap(vec)                                                 \
+    (vec)->cap > 0 ? (vec)->cap * 2 : CARR_VEC_INITIAL_CAP
+
+#define carr_vec_grow(vec)                                                     \
+do {                                                                           \
+    size_t new_cap = carr_vec_grow_cap((vec));                                 \
+    carr_vec_realloc((vec), new_cap);                                          \
     (vec)->cap = new_cap;                                                      \
 } while (0)
 
@@ -78,13 +88,21 @@ do {                                                                           \
         .len   = 0,                                                            \
         .cap   = 0,                                                            \
     };                                                                         \
-    vec_realloc(&it);                                                          \
+    carr_vec_grow(&it);                                                        \
 } while (0)
 
 #define carr_vec_free(vec)                                                     \
 do {                                                                           \
     free((vec)->items);                                                        \
     (vec)->items = NULL;                                                       \
+} while (0)
+
+#define carr_vec_clone(dst, src)                                               \
+do {                                                                           \
+    carr_vec_realloc((dst), (src)->cap);                                       \
+    (dst)->cap = (src)->cap;                                                   \
+    (dst)->len = (src)->len;                                                   \
+    memcpy((dst)->items, (src)->items, (src)->len * sizeof((src)->items[0]));  \
 } while (0)
 
 #define carr_vec_init(vec)                                                     \
@@ -106,7 +124,7 @@ do {                                                                           \
 #define carr_vec_append(vec, item)                                             \
 do {                                                                           \
     if ((vec)->len + 1 > (vec)->cap) {                                         \
-        vec_realloc((vec));                                                    \
+        carr_vec_grow((vec));                                                  \
     }                                                                          \
     (vec)->items[(vec)->len++] = item;                                         \
 } while (0)
@@ -122,15 +140,15 @@ do {                                                                           \
     }                                                                          \
                                                                                \
     if (idx == (vec)->len) {                                                   \
-        vec_append((vec), item);                                               \
+        carr_vec_append((vec), item);                                          \
         break;                                                                 \
     }                                                                          \
                                                                                \
     if ((vec)->len + 1 > (vec)->cap) {                                         \
-        vec_realloc((vec));                                                    \
+        carr_vec_grow((vec));                                                  \
     }                                                                          \
                                                                                \
-    size_t n   = ((vec)->len - idx) * sizeof( (vec)->items );                  \
+    size_t n   = ((vec)->len - idx) * sizeof( (vec)->items[0] );               \
     void* src  = (vec)->items + idx;                                           \
     void* dest = (vec)->items + (idx + 1);                                     \
     memmove(dest, src, n);                                                     \
@@ -161,15 +179,15 @@ do {                                                                           \
         exit(2);                                                               \
     }                                                                          \
     size_t idx = (vec)->len - 1;                                               \
-    *(res) = vec_at((vec), idx);                                               \
-    vec_delete((vec), idx);                                                    \
+    *(res) = carr_vec_at((vec), idx);                                          \
+    carr_vec_delete((vec), idx);                                               \
 } while (0)
 
 #define carr_vec_swap(vec, i, j)                                               \
 do {                                                                           \
-    vec_append((vec), vec_at((vec), (i)));                                     \
-    (vec)->items[(i)] = vec_at((vec), (j));                                    \
-    (vec)->items[(j)] = vec_at((vec), (vec)->len-1);                           \
+    carr_vec_append((vec), carr_vec_at((vec), (i)));                           \
+    (vec)->items[(i)] = carr_vec_at((vec), (j));                               \
+    (vec)->items[(j)] = carr_vec_at((vec), (vec)->len-1);                      \
     (vec)->len--;                                                              \
 } while (0)
 
@@ -210,31 +228,31 @@ do {                                                                           \
 // The file [examples/heap_queue.c] provides a complete example.
 typedef bool(*CarrHeapCompareFunction)(void* a, void* b);
 
-#define heap_parent(i) (i - 1) >> 1
-#define heap_left(i)   ((i) << 1) | 1
-#define heap_right(i)  ((i + 1) << 1)
+#define carr_heap_parent(i) (i - 1) >> 1
+#define carr_heap_left(i)   ((i) << 1) | 1
+#define carr_heap_right(i)  ((i + 1) << 1)
 
 
 #define carr_heap_new(vec, func)                                               \
 do {                                                                           \
-    vec_init((vec));                                                           \
-    vec_realloc((vec));                                                        \
+    carr_vec_init((vec));                                                      \
+    carr_vec_grow((vec));                                                      \
     (vec)->compare = func;                                                     \
 } while (0) 
 
 #define carr_heap_balance(h, idx)                                              \
 do {                                                                           \
     struct { size_t* items; size_t  len; size_t  cap; } stack;                 \
-    vec_init(&stack);                                                          \
-    vec_realloc(&stack);                                                       \
-    vec_append(&stack, idx);                                                   \
+    carr_vec_init(&stack);                                                     \
+    carr_vec_grow(&stack);                                                     \
+    carr_vec_append(&stack, idx);                                              \
                                                                                \
     while (stack.len > 0) {                                                    \
         size_t cur;                                                            \
-        vec_pop(&stack, &cur);                                                 \
+        carr_vec_pop(&stack, &cur);                                            \
                                                                                \
-        size_t l    = heap_left(cur);                                          \
-        size_t r    = heap_right(cur);                                         \
+        size_t l    = carr_heap_left(cur);                                     \
+        size_t r    = carr_heap_right(cur);                                    \
         size_t best = cur;                                                     \
                                                                                \
         if (                                                                   \
@@ -258,8 +276,8 @@ do {                                                                           \
         }                                                                      \
                                                                                \
         if (best != cur) {                                                     \
-            vec_swap((h), cur, best);                                          \
-            vec_append(&stack, best);                                          \
+            carr_vec_swap((h), cur, best);                                     \
+            carr_vec_append(&stack, best);                                     \
         }                                                                      \
     }                                                                          \
 } while (0)
@@ -267,10 +285,13 @@ do {                                                                           \
 #define carr_heap_increase(h, idx, value)                                      \
 do {                                                                           \
     h->items[(idx)] = value;                                                   \
-    size_t par = heap_parent((idx));                                           \
-    while (par > 0 && (h)->compare(vec_at((h), par), vec_at((h), (idx)))) {    \
-        vec_swap((h), (idx), par);                                             \
-        par = heap_parent(par);                                                \
+    size_t par = carr_heap_parent((idx));                                      \
+    while (                                                                    \
+        par > 0 &&                                                             \
+        (h)->compare(carr_vec_at((h), par), carr_vec_at((h), (idx)))           \
+    ) {                                                                        \
+        carr_vec_swap((h), (idx), par);                                        \
+        par = carr_heap_parent(par);                                           \
     }                                                                          \
 } while (0)
 
@@ -279,28 +300,28 @@ do {                                                                           \
 do {                                                                           \
     int start = (vec)->len / 2 - 1;                                            \
     for (int i = start; i >= 0; i--) {                                         \
-        heap_balance((vec), i);                                                \
+        carr_heap_balance((vec), i);                                           \
     }                                                                          \
 } while (0)
 
 
 #define carr_heap_push(h, value)                                               \
 do {                                                                           \
-    vec_append((h), (value));                                                  \
-    heap_increase((h), (h)->len-1, (value));                                   \
+    carr_vec_append((h), (value));                                             \
+    carr_heap_increase((h), (h)->len-1, (value));                              \
 } while (0)                                                                    \
 
 
 #define carr_heap_pop(h, res)                                                  \
 do {                                                                           \
     if ((h)->len == 1) {                                                       \
-        vec_pop((h), (res));                                                   \
+        carr_vec_pop((h), (res));                                              \
         break;                                                                 \
     }                                                                          \
     size_t last = (h)->len-1;                                                  \
-    vec_swap((h), (size_t)0, last);                                            \
-    vec_pop((h), (res));                                                       \
-    heap_balance((h), 0);                                                      \
+    carr_vec_swap((h), (size_t)0, last);                                       \
+    carr_vec_pop((h), (res));                                                  \
+    carr_heap_balance((h), 0);                                                 \
 } while (0)                                                                    \
 
 
