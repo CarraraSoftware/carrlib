@@ -22,6 +22,7 @@
 #define sb_grow_cap      carr_sb_grow_cap
 #define sb_grow          carr_sb_grow
 #define sb_append        carr_sb_append
+#define sb_nconcat       carr_sb_nconcat
 #define sb_concat        carr_sb_concat
 #define sb_concatf       carr_sb_concatf
 #define sb_free          carr_sb_free
@@ -39,6 +40,7 @@
 #define sv_trim_right    carr_sv_trim_right
 #define sv_trim_left     carr_sv_trim_left
 #define sv_is_equal      carr_sv_is_equal
+#define sv_starts_with   carr_sv_starts_with
 #define sv_printn        carr_sv_printn
 #define sv_print         carr_sv_print
 #define sv_to_cstr       carr_sv_to_cstr
@@ -72,29 +74,27 @@ size_t            carr_sb_grow_cap(CarrStringBuilder sb);
 void              carr_sb_grow(CarrStringBuilder* sb);
 void              carr_sb_free(CarrStringBuilder* sb);
 void              carr_sb_append(CarrStringBuilder* sb, char ch);
+void              carr_sb_nconcat(CarrStringBuilder* sb, const char* str, size_t n);
 void              carr_sb_concat(CarrStringBuilder* sb, const char* cstr);
 void              carr_sb_concatf(CarrStringBuilder* sb, const char* format, ...);
 
 CarrStringView carr_sv_from_sb(CarrStringBuilder sb);
 CarrStringView carr_sv_from_cstr(const char* in);
 CarrStringView carr_sv_null();
-
 CarrStringView carr_sv_chop_by_space(CarrStringView* in);
 CarrStringView carr_sv_chop_line(CarrStringView* in);
 CarrStringView carr_sv_chop_by_delim(CarrStringView* in, char delim);
+void           carr_sv_strip_space(CarrStringView* in);
+void           carr_sv_trim_right(CarrStringView* in, char sym);
+void           carr_sv_trim_left(CarrStringView* in, char sym);
+bool           carr_sv_is_equal(CarrStringView sv, CarrStringView other);
+bool           carr_sv_starts_with(CarrStringView sv, const char* prefix);
+void           carr_sv_printn(CarrStringView in);
+void           carr_sv_print(CarrStringView in);
+char*          carr_sv_to_cstr(CarrStringView in);
+int            carr_sv_parse_int(CarrStringView in);
 
-void carr_sv_strip_space(CarrStringView* in);
-void carr_sv_trim_right(CarrStringView* in, char sym);
-void carr_sv_trim_left(CarrStringView* in, char sym);
-
-bool carr_sv_is_equal(CarrStringView sv, CarrStringView other);
-
-void carr_sv_printn(CarrStringView in);
-void carr_sv_print(CarrStringView in);
-
-char *carr_sv_to_cstr(CarrStringView in);
-int   carr_sv_parse_int(CarrStringView in);
-
+// #define CARR_SV_IMPLEMENTATION
 #ifdef CARR_SV_IMPLEMENTATION
 
 CarrStringBuilder carr_sb_new()
@@ -122,7 +122,8 @@ CarrStringBuilder carr_sb_from_file(const char* file_path)
             "%s:%d:ERROR: sv_from_file: failed to open file '%s': %s\n",
             __FILE_NAME__, __LINE__, file_path, strerror(errno)
         );
-        exit(1);
+        // if error => sb->data == NULL 
+        return sb_new();
     }
 
     fseek(f, 0, SEEK_END);
@@ -172,6 +173,14 @@ void carr_sb_append(CarrStringBuilder* sb, char ch)
         carr_sb_grow(sb);
     }
     sb->data[sb->len++] = ch;
+}
+
+void carr_sb_nconcat(CarrStringBuilder* sb, const char* str, size_t n)
+{
+    for (size_t idx = 0; idx < n; idx++) {
+        char ch = str[idx];
+        carr_sb_append(sb, ch);
+    }
 }
 
 void carr_sb_concat(CarrStringBuilder* sb, const char* cstr)
@@ -277,6 +286,21 @@ bool carr_sv_is_equal(CarrStringView sv, CarrStringView other)
     }
     return true;
 }
+
+bool carr_sv_starts_with(CarrStringView sv, const char* prefix)
+{
+    size_t n = strlen(prefix);
+    if (n > sv.len) {
+        return false;
+    }
+    for (int i = 0; i < n; ++i) {
+        if (sv.data[i] != prefix[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 
 CarrStringView carr_sv_chop_by_delim(CarrStringView* in, char delim)
 {
