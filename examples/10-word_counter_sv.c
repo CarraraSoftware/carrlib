@@ -11,7 +11,8 @@ int main(void)
     Map freqs;
     map_init(&freqs);
 
-    StringView file_view = sv_from_file("examples/fpessoa.txt"); 
+    StringBuilder buf = sb_from_file("examples/fpessoa.txt"); 
+    StringView file_view = sv_from_sb(buf);
 
     while (file_view.len > 0) {
         StringView line_view = sv_chop_line(&file_view);

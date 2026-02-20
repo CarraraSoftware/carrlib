@@ -1,6 +1,8 @@
 #ifndef CARR_SV_H_
 #define CARR_SV_H_
 
+#include <stdarg.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -13,9 +15,21 @@
 // will be included by default.
 #ifndef CARR_SV_FORCE_PREFIX
 
+#define StringBuilder    CarrStringBuilder
+#define sb_new           carr_sb_new
+#define sb_from_file     carr_sb_from_file
+#define sb_realloc       carr_sb_realloc
+#define sb_grow_cap      carr_sb_grow_cap
+#define sb_grow          carr_sb_grow
+#define sb_append        carr_sb_append
+#define sb_concat        carr_sb_concat
+#define sb_concatf       carr_sb_concatf
+#define sb_free          carr_sb_free
+
+
 #define StringView       CarrStringView
 
-#define sv_from_file     carr_sv_from_file
+#define sv_from_sb       carr_sv_from_sb
 #define sv_from_cstr     carr_sv_from_cstr
 #define sv_null          carr_sv_null
 #define sv_chop_by_space carr_sv_chop_by_space
@@ -32,13 +46,36 @@
 
 #endif  // CARR_SV_FORCE_PREFIX
 
+#ifndef CARR_SV_TEMP_STR_SIZE
+#define CARR_SV_TEMP_STR_SIZE 100
+#endif  //CARR_SV_TEMP_STR_SIZE
+
+#ifndef CARR_SB_INITIAL_CAP
+#define CARR_SB_INITIAL_CAP   256
+#endif  //CARR_SB_INITIAL_CAP
 
 typedef struct {
     const char* data;
     size_t      len;
 } CarrStringView;
 
-CarrStringView carr_sv_from_file(const char* file_path);
+typedef struct {
+    char*   data;
+    size_t  len;
+    size_t  cap;
+} CarrStringBuilder;
+
+CarrStringBuilder carr_sb_new();
+CarrStringBuilder carr_sb_from_file(const char* file_path);
+void              carr_sb_realloc(CarrStringBuilder* sb, size_t new_size);
+size_t            carr_sb_grow_cap(CarrStringBuilder sb);
+void              carr_sb_grow(CarrStringBuilder* sb);
+void              carr_sb_free(CarrStringBuilder* sb);
+void              carr_sb_append(CarrStringBuilder* sb, char ch);
+void              carr_sb_concat(CarrStringBuilder* sb, const char* cstr);
+void              carr_sb_concatf(CarrStringBuilder* sb, const char* format, ...);
+
+CarrStringView carr_sv_from_sb(CarrStringBuilder sb);
 CarrStringView carr_sv_from_cstr(const char* in);
 CarrStringView carr_sv_null();
 
@@ -60,15 +97,24 @@ int   carr_sv_parse_int(CarrStringView in);
 
 #ifdef CARR_SV_IMPLEMENTATION
 
-CarrStringView carr_sv_from_cstr(const char* in)
+CarrStringBuilder carr_sb_new()
 {
-    return (CarrStringView){
-        .data = in,
-        .len  = strlen(in),
+    return (CarrStringBuilder) {
+        .data = NULL,
+        .len  = 0, 
+        .cap  = 0,
     };
 }
 
-CarrStringView carr_sv_from_file(const char* file_path)
+CarrStringBuilder carr_sb_with_cap(size_t cap) 
+{
+    CarrStringBuilder sb = carr_sb_new();
+    carr_sb_realloc(&sb, cap);
+    sb.cap = cap;
+    return sb;
+}
+
+CarrStringBuilder carr_sb_from_file(const char* file_path)
 {
     FILE* f = fopen(file_path, "r");
     if (f == NULL) {
@@ -83,14 +129,85 @@ CarrStringView carr_sv_from_file(const char* file_path)
     size_t n = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    // TODO: memory leak...
-    char* buf = (char*)malloc(n);
-    fread(buf, 1, n, f);
+    CarrStringBuilder sb = carr_sb_with_cap(n);
+    fread(sb.data, 1, n, f);
     fclose(f);
+    sb.len = n;
+    return sb;
+}
 
+void carr_sb_realloc(CarrStringBuilder* sb, size_t new_size)
+{
+    sb->data = (char*)realloc(sb->data, new_size);
+}
+
+size_t carr_sb_grow_cap(CarrStringBuilder sb)
+{
+    size_t new_cap;
+    if (sb.cap == 0) {
+        new_cap = CARR_SB_INITIAL_CAP;
+    } else {
+        new_cap = sb.cap * 2;
+    }
+    return new_cap;
+}
+
+void carr_sb_grow(CarrStringBuilder* sb)
+{
+    size_t new_cap = carr_sb_grow_cap(*sb);
+    carr_sb_realloc(sb, new_cap * sizeof(char));
+    sb->cap = new_cap;
+}
+
+void carr_sb_free(CarrStringBuilder* sb)
+{
+    free(sb->data);
+    sb->len = 0;
+    sb->cap = 0;
+}
+
+void carr_sb_append(CarrStringBuilder* sb, char ch)
+{
+    if (sb->len + 1 > sb->cap) {
+        carr_sb_grow(sb);
+    }
+    sb->data[sb->len++] = ch;
+}
+
+void carr_sb_concat(CarrStringBuilder* sb, const char* cstr)
+{
+    for (size_t idx = 0; cstr[idx] != '\0'; idx++) {
+        char ch = cstr[idx];
+        carr_sb_append(sb, ch);
+    }
+}
+
+void carr_sb_concatf(CarrStringBuilder* sb, const char* format, ...)
+{
+    char temp[CARR_SV_TEMP_STR_SIZE];
+    
+    va_list args;
+    va_start(args, format);
+    vsnprintf(temp, CARR_SV_TEMP_STR_SIZE, format, args);
+    va_end(args);
+
+    sb_concat(sb, (const char*)temp);
+}
+
+
+CarrStringView carr_sv_from_sb(CarrStringBuilder sb)
+{
     return (CarrStringView) {
-        .data = buf,
-        .len  = n,
+        .data = sb.data,
+        .len  = sb.len,
+    };
+}
+
+CarrStringView carr_sv_from_cstr(const char* in)
+{
+    return (CarrStringView){
+        .data = in,
+        .len  = strlen(in),
     };
 }
 
