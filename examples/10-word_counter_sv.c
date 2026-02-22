@@ -46,6 +46,19 @@ int main(void)
         }
         printf("%s: %d\n", item.key, *(int*)item.value);
     }
+
+    sb_free(&buf);
+    for (size_t i = 0; i < freqs.cap; ++i) {
+        Entry item = freqs.items[i];
+        if (item.key != NULL) {
+            free((void*)item.key);
+        }
+
+        if (item.value != NULL) {
+            free((void*)item.value);
+        }
+    }
+    map_free(&freqs);
     return 0;
 }
 
