@@ -77,6 +77,7 @@ void carr_map_realloc(Map* m)
 
     m->cap = new_cap;
     m->items = (Entry*)malloc(sizeof(m->items[0]) * new_cap);
+    memset(m->items, 0, sizeof(m->items[0]) * new_cap);
     for (size_t i = 0; i < old.cap; ++i) {
         Entry item = old.items[i];
         if (item.key == NULL) {
