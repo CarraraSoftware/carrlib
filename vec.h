@@ -67,7 +67,7 @@
 #define carr_vec_realloc(vec, new_size) \
 do {                                                                           \
     if ((vec)->cap < new_size) {                                               \
-        (vec)->items = realloc((vec)->items, (new_size));                      \
+        (vec)->items = realloc((vec)->items, (sizeof(*(vec)->items) * (new_size))); \
     }                                                                          \
 } while (0)
 
