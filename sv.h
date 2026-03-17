@@ -17,6 +17,7 @@
 
 #define StringBuilder    CarrStringBuilder
 #define sb_new           carr_sb_new
+#define sb_with_cap      carr_sb_with_cap
 #define sb_from_file     carr_sb_from_file
 #define sb_realloc       carr_sb_realloc
 #define sb_grow_cap      carr_sb_grow_cap
@@ -68,6 +69,7 @@ typedef struct {
 } CarrStringBuilder;
 
 CarrStringBuilder carr_sb_new();
+CarrStringBuilder carr_sb_with_cap(size_t cap);
 CarrStringBuilder carr_sb_from_file(const char* file_path);
 void              carr_sb_realloc(CarrStringBuilder* sb, size_t new_size);
 size_t            carr_sb_grow_cap(CarrStringBuilder sb);
