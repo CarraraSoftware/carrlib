@@ -26,6 +26,9 @@
 #define vec_swap      carr_vec_swap
 #define vec_free      carr_vec_free
 #define vec_clone     carr_vec_clone
+#define vec_grow_cap  carr_vec_grow_cap
+#define vec_grow      carr_vec_grow
+#define vec_expandto  carr_vec_expandto
 
 #define heapfy        carr_heapfy
 #define heap_new      carr_heap_new
@@ -77,6 +80,13 @@ do {                                                                           \
 #define carr_vec_grow(vec)                                                     \
 do {                                                                           \
     size_t new_cap = carr_vec_grow_cap((vec));                                 \
+    carr_vec_realloc((vec), new_cap);                                          \
+    (vec)->cap = new_cap;                                                      \
+} while (0)
+
+
+#define carr_vec_expandto(vec, new_cap)                                        \
+do {                                                                           \
     carr_vec_realloc((vec), new_cap);                                          \
     (vec)->cap = new_cap;                                                      \
 } while (0)
