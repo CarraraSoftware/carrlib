@@ -1,12 +1,14 @@
 #ifndef CARR_SV_H_
 #define CARR_SV_H_
 
+#include <assert.h>
+#include <ctype.h>
+#include <errno.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <errno.h>
 
 
 // The user can define this macro to include only the macro functions 
@@ -34,9 +36,13 @@
 #define sv_from_sb       carr_sv_from_sb
 #define sv_from_cstr     carr_sv_from_cstr
 #define sv_null          carr_sv_null
+#define sv_first         carr_sv_first
+#define sv_last          carr_sv_last
 #define sv_chop_by_space carr_sv_chop_by_space
 #define sv_chop_line     carr_sv_chop_line
 #define sv_chop_by_delim carr_sv_chop_by_delim
+#define sv_chop_left     carr_sv_chop_left
+#define sv_chop_right    carr_sv_chop_right
 #define sv_strip_space   carr_sv_strip_space
 #define sv_trim_right    carr_sv_trim_right
 #define sv_trim_left     carr_sv_trim_left
@@ -83,9 +89,13 @@ void              carr_sb_concatf(CarrStringBuilder* sb, const char* format, ...
 CarrStringView carr_sv_from_sb(CarrStringBuilder sb);
 CarrStringView carr_sv_from_cstr(const char* in);
 CarrStringView carr_sv_null();
+char           carr_sv_first(CarrStringView* in);
+char           carr_sv_last(CarrStringView* in);
 CarrStringView carr_sv_chop_by_space(CarrStringView* in);
 CarrStringView carr_sv_chop_line(CarrStringView* in);
 CarrStringView carr_sv_chop_by_delim(CarrStringView* in, char delim);
+char           carr_sv_chop_left(CarrStringView* in);
+char           carr_sv_chop_right(CarrStringView* in);
 void           carr_sv_strip_space(CarrStringView* in);
 void           carr_sv_trim_right(CarrStringView* in, char sym);
 void           carr_sv_trim_left(CarrStringView* in, char sym);
@@ -94,7 +104,7 @@ bool           carr_sv_starts_with(CarrStringView sv, const char* prefix);
 void           carr_sv_printn(CarrStringView in);
 void           carr_sv_print(CarrStringView in);
 char*          carr_sv_to_cstr(CarrStringView in);
-int            carr_sv_parse_int(CarrStringView in);
+int            carr_sv_parse_int(CarrStringView* in);
 
 // #define CARR_SV_IMPLEMENTATION
 #ifdef CARR_SV_IMPLEMENTATION
@@ -247,6 +257,18 @@ void carr_sv_printn(CarrStringView in)
     printf("%.*s\n", (int)in.len, in.data);
 }
 
+char carr_sv_first(CarrStringView* in)
+{
+    assert(in->len > 0);
+    return *in->data;
+}
+
+char carr_sv_last(CarrStringView* in)
+{
+    assert(in->len > 0);
+    return in->data[in->len - 1];
+}
+
 void carr_sv_trim_left(CarrStringView* in, char sym)
 {
     if (in->len == 0) {
@@ -334,25 +356,51 @@ CarrStringView carr_sv_chop_by_space(CarrStringView* in)
     return carr_sv_chop_by_delim(in, ' ');
 }
 
-int carr_sv_parse_int(CarrStringView in)
+char carr_sv_chop_left(CarrStringView* in) 
 {
+    if (in->len == 0) return '\0';
+    char ch = *in->data;
+    in->data++;
+    in->len--;
+    return ch;
+}
+
+char carr_sv_chop_right(CarrStringView* in)
+{
+    if (in->len == 0) return '\0';
+    char ch = in->data[in->len - 1];
+    in->len--;
+    return ch;
+}
+
+int carr_sv_parse_int(CarrStringView* in)
+{
+    assert(
+        in->len > 0 && (
+            isdigit(in->data[0]) ||
+            in->data[0] == '-'
+        )
+    );
     bool is_neg = false;
-    size_t start = 0;
-    if (in.data[0] == '-') {
-        start = 1;
+    char ch = carr_sv_chop_left(in);
+    if (ch == '-') {
         is_neg = true;
+        ch = carr_sv_chop_left(in);
     }
 
     int sum = 0;
-    for (size_t i = start; i < in.len; ++i) {
-        char ch = in.data[i];
+    while (in->len > 0) {
         if (ch < 48 || ch > 57) {
-            return 0;
+            break;
         }
+        
         int n = ch - '0';
         sum *= 10;
         sum += n;
+        ch = carr_sv_chop_left(in);
     }
+    in->data--;
+    in->len++;
     if (is_neg) {
         sum = -sum;
     }
