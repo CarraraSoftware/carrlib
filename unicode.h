@@ -52,7 +52,7 @@ int utf8_to_utf32(uint8_t* in, uint32_t* out)
         } break;
     }
 
-    return 1;
+    return utf8len;
 }
 
 uint32_t utf32_from_utf8(uint8_t* in)
